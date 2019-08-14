@@ -29,6 +29,7 @@ from airflow.utils.helpers import parse_template_string
 from airflow.utils.log.file_task_handler import FileTaskHandler
 from airflow.utils.log.json_formatter import JSONFormatter
 from airflow.utils.log.logging_mixin import LoggingMixin
+from airflow.configuration import conf
 
 
 class ElasticsearchTaskHandler(FileTaskHandler, LoggingMixin):
@@ -53,8 +54,9 @@ class ElasticsearchTaskHandler(FileTaskHandler, LoggingMixin):
 
     def __init__(self, base_log_folder, filename_template,
                  log_id_template, end_of_log_mark,
-                 write_stdout, json_format, record_labels,
-                 host='localhost:9200'):
+                 write_stdout, json_format, json_fields,
+                 host='localhost:9200',
+                 es_kwargs=conf.getsection("elasticsearch_configs") or {}):
         """
         :param base_log_folder: base folder to store logs locally
         :param log_id_template: log id template
@@ -67,13 +69,13 @@ class ElasticsearchTaskHandler(FileTaskHandler, LoggingMixin):
         self.log_id_template, self.log_id_jinja_template = \
             parse_template_string(log_id_template)
 
-        self.client = elasticsearch.Elasticsearch([host])
+        self.client = elasticsearch.Elasticsearch([host], **es_kwargs)
 
         self.mark_end_on_close = True
         self.end_of_log_mark = end_of_log_mark
         self.write_stdout = write_stdout
         self.json_format = json_format
-        self.record_labels = [label.strip() for label in record_labels.split(",")]
+        self.json_fields = [label.strip() for label in json_fields.split(",")]
         self.handler = None
 
     def _render_log_id(self, ti, try_number):
@@ -209,7 +211,7 @@ class ElasticsearchTaskHandler(FileTaskHandler, LoggingMixin):
             else:
                 self.handler.setFormatter(self.formatter)
         else:
-            super(ElasticsearchTaskHandler, self).set_context(ti)
+            super().set_context(ti)
 
     def emit(self, record):
         if self.write_stdout:
@@ -217,7 +219,7 @@ class ElasticsearchTaskHandler(FileTaskHandler, LoggingMixin):
             if self.handler is not None:
                 self.handler.emit(record)
         else:
-            super(ElasticsearchTaskHandler, self).emit(record)
+            super().emit(record)
 
     def flush(self):
         if self.handler is not None:

@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-
+# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,24 +17,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -exuo pipefail
+"""Enums for DAG serialization."""
 
-if [[ ${INSIDE_DOCKER_CONTAINER:-} != true ]]; then
-    echo "You are not inside a docker container!"
-    echo "You should only run this script in the docker container as it may override your files."
-    echo "Learn more about how we develop and test airflow in:"
-    echo "https://github.com/apache/airflow/blob/master/CONTRIBUTING.md#development-and-testing"
-    exit 1
-fi
+from enum import Enum, unique
 
-# Start MiniCluster
-java -cp "/tmp/minicluster-1.1-SNAPSHOT/*" com.ing.minicluster.MiniCluster > /dev/null &
 
-# Set up ssh keys
-echo 'yes' | ssh-keygen -t rsa -C your_email@youremail.com -P '' -f ~/.ssh/id_rsa
-cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-ln -s -f ~/.ssh/authorized_keys ~/.ssh/authorized_keys2
-chmod 600 ~/.ssh/*
+# Fields of an encoded object in serialization.
+@unique
+class Encoding(str, Enum):
+    """Enum of encoding constants."""
+    TYPE = '__type'
+    VAR = '__var'
 
-# SSH Service
-sudo service ssh restart
+
+# Supported types for encoding. primitives and list are not encoded.
+@unique
+class DagAttributeTypes(str, Enum):
+    """Enum of supported attribute types of DAG."""
+    DAG = 'dag'
+    OP = 'operator'
+    DATETIME = 'datetime'
+    TIMEDELTA = 'timedelta'
+    TIMEZONE = 'timezone'
+    DICT = 'dict'
+    SET = 'set'
+    TUPLE = 'tuple'

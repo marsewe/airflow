@@ -25,13 +25,14 @@ import elasticsearch
 from unittest import mock
 import pendulum
 
-from airflow import configuration
 from airflow.models import TaskInstance, DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.utils import timezone
 from airflow.utils.log.es_task_handler import ElasticsearchTaskHandler
 from airflow.utils.state import State
 from airflow.utils.timezone import datetime
+from airflow.configuration import conf
+
 from .elasticmock import elasticmock
 
 
@@ -71,7 +72,6 @@ class TestElasticsearchTaskHandler(unittest.TestCase):
         self.es.index(index=self.index_name, doc_type=self.doc_type,
                       body=self.body, id=1)
 
-        configuration.load_test_config()
         self.dag = DAG(self.DAG_ID, start_date=self.EXECUTION_DATE)
         task = DummyOperator(task_id=self.TASK_ID, dag=self.dag)
         self.ti = TaskInstance(task=task, execution_date=self.EXECUTION_DATE)
@@ -84,6 +84,25 @@ class TestElasticsearchTaskHandler(unittest.TestCase):
 
     def test_client(self):
         self.assertIsInstance(self.es_task_handler.client, elasticsearch.Elasticsearch)
+
+    def test_client_with_config(self):
+        es_conf = dict(conf.getsection("elasticsearch_configs"))
+        expected_dict = {
+            "use_ssl": False,
+            "verify_certs": True,
+        }
+        self.assertDictEqual(es_conf, expected_dict)
+        # ensure creating with configs does not fail
+        ElasticsearchTaskHandler(
+            self.local_log_location,
+            self.filename_template,
+            self.log_id_template,
+            self.end_of_log_mark,
+            self.write_stdout,
+            self.json_format,
+            self.json_fields,
+            es_conf
+        )
 
     def test_read(self):
         ts = pendulum.now()
@@ -231,6 +250,15 @@ class TestElasticsearchTaskHandler(unittest.TestCase):
     def test_set_context(self):
         self.es_task_handler.set_context(self.ti)
         self.assertTrue(self.es_task_handler.mark_end_on_close)
+
+    def test_set_context_w_json_format_and_write_stdout(self):
+        self.es_task_handler.formatter = mock.MagicMock()
+        self.es_task_handler.formatter._fmt = mock.MagicMock()
+        self.es_task_handler.formatter._fmt.find = mock.MagicMock(return_value=1)
+        self.es_task_handler.writer = mock.MagicMock()
+        self.es_task_handler.write_stdout = True
+        self.es_task_handler.json_format = True
+        self.es_task_handler.set_context(self.ti)
 
     def test_close(self):
         self.es_task_handler.set_context(self.ti)
